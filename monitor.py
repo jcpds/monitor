@@ -14,7 +14,6 @@ if len(sys.argv) != 2:
 # text file to get list of urls
 urls_file = sys.argv[1]
 
-
 def parse_url(url):
     """Return protocol, host, port, and path from a URL."""
     url = url.strip()
@@ -28,7 +27,7 @@ def parse_url(url):
         port = 80
         rest = url[7:]
     else:
-        # The project input uses http:// or https:// URLs.
+        # The project input uses http:// or https:// URLs
         protocol = 'http'
         port = 80
         rest = url
@@ -43,7 +42,7 @@ def parse_url(url):
         if path == '':
             path = '/'
 
-    # Allow an explicit port in a URL, if one is provided.
+    # Allow an explicit port in a URL if provided
     if ':' in host_part:
         host, port_text = host_part.rsplit(':', 1)
         try:
@@ -52,9 +51,7 @@ def parse_url(url):
             host = host_part
     else:
         host = host_part
-
     return protocol, host, port, path
-
 
 def make_absolute_url(base_url, new_url):
     """Convert a redirect or referenced object URL to a complete URL."""
@@ -64,7 +61,6 @@ def make_absolute_url(base_url, new_url):
         return new_url
 
     protocol, host, port, path = parse_url(base_url)
-
     default_port = (protocol == 'http' and port == 80) or \
                    (protocol == 'https' and port == 443)
 
@@ -75,29 +71,23 @@ def make_absolute_url(base_url, new_url):
 
     if new_url.startswith('//'):
         return protocol + ':' + new_url
-
     if new_url.startswith('/'):
         return protocol + '://' + server + new_url
-
-    # Relative path: place it in the same directory as the current page.
+    # place it in the same directory as the current page
     if '/' in path:
         directory = path.rsplit('/', 1)[0] + '/'
     else:
         directory = '/'
-
     return protocol + '://' + server + directory + new_url
-
 
 def receive_all(sock):
     """Receive the complete response until the server closes the connection."""
     response = b''
-
     while True:
         data = sock.recv(4096)
         if not data:
             break
         response += data
-
     return response
 
 
@@ -110,46 +100,44 @@ def fetch_url(url):
     sock = None
 
     try:
-        # create client socket, connect to server
+        # create client socket / connect to server
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         sock.connect((host, port))
 
-        # HTTPS extra credit: protect the connected TCP socket with TLS.
+        # protect connected TCP with TLS
         if protocol == 'https':
             context = ssl.create_default_context()
             sock = context.wrap_socket(sock, server_hostname=host)
 
-        # send HTTP request
+        # send request
         request = f'GET {path} HTTP/1.0\r\n'
         request += f'Host: {host}\r\n'
         request += 'Connection: close\r\n'
         request += '\r\n'
         sock.sendall(bytes(request, 'utf-8'))
 
-        # receive HTTP response
+        # receive response
         response = receive_all(sock)
 
         if not response:
             return None
 
-        # Split headers and body.
+        # Split headers / body
         header_end = response.find(b'\r\n\r\n')
         if header_end == -1:
             return None
 
         header_bytes = response[:header_end]
         body = response[header_end + 4:]
-
         header_text = header_bytes.decode('iso-8859-1')
         header_lines = header_text.split('\r\n')
 
         if len(header_lines) == 0:
             return None
-
         status_line = header_lines[0]
 
-        # Store response headers using lowercase names.
+        # save headers with lowercase
         headers = {}
         for line in header_lines[1:]:
             if ':' in line:
@@ -168,14 +156,12 @@ def fetch_url(url):
             except Exception:
                 pass
 
-
 def status_text(status_line):
     """Remove HTTP version and return code/reason, such as 200 OK."""
     parts = status_line.split(' ', 1)
     if len(parts) == 2:
         return parts[1]
     return status_line
-
 
 def status_code(status_line):
     """Return the numeric HTTP status code, or 0 if it cannot be parsed."""
@@ -187,7 +173,6 @@ def status_code(status_line):
             pass
     return 0
 
-
 def find_images(body):
     """Find src values from HTML img tags."""
     try:
@@ -195,7 +180,7 @@ def find_images(body):
     except Exception:
         return []
 
-    # Handles quoted and unquoted src values.
+    # src values handler
     pattern = r'<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|\'([^\']+)\'|([^\s>]+))'
     matches = re.findall(pattern, html, flags=re.IGNORECASE)
 
@@ -204,7 +189,6 @@ def find_images(body):
         image_url = match[0] or match[1] or match[2]
         if image_url and image_url not in images:
             images.append(image_url)
-
     return images
 
 
@@ -213,7 +197,7 @@ def print_referenced_objects(page_url, body):
     images = find_images(body)
 
     for image in images:
-        # Ignore data URLs because they are embedded in the HTML itself.
+        # Ignore data URLs
         if image.startswith('data:'):
             continue
 
@@ -226,7 +210,6 @@ def print_referenced_objects(page_url, body):
         else:
             image_status, image_headers, image_body = result
             print('Status: ' + status_text(image_status))
-
 
 def monitor_url(url):
     """Fetch a URL, report its status, and handle redirects/referenced images."""
@@ -242,7 +225,7 @@ def monitor_url(url):
 
     code = status_code(current_status)
 
-    # Follow the 301/302 redirect required by the project.
+    # Follow redirect
     if code == 301 or code == 302:
         if 'location' in headers:
             redirected_url = make_absolute_url(url, headers['location'])
@@ -252,26 +235,24 @@ def monitor_url(url):
             if redirected_result is None:
                 print('Status: Network Error')
                 return
-
+            
             redirected_status, redirected_headers, redirected_body = redirected_result
             print('Status: ' + status_text(redirected_status))
 
-            # If the redirected response is HTML, check its referenced images too.
+            # If the redirected response is HTML checks its referenced images
             content_type = redirected_headers.get('content-type', '')
             if status_code(redirected_status) >= 200 and \
                status_code(redirected_status) < 300 and \
                'text/html' in content_type.lower():
                 print_referenced_objects(redirected_url, redirected_body)
-
         return
 
-    # For successful HTML pages, fetch referenced image objects.
+    # Fetch referenced image objects if good
     content_type = headers.get('content-type', '')
     if code >= 200 and code < 300 and 'text/html' in content_type.lower():
         print_referenced_objects(url, body)
 
-
-# Read and monitor each URL once.
+# Read each URL
 try:
     with open(urls_file, 'r') as file:
         urls = file.readlines()
